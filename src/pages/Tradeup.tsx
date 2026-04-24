@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import TradeupBuilder from "../components/TradeupBuilder";
 import TradeupFilters from "../components/TradeupFilters";
+import TradeupOutcomes from "../components/TradeupOutcomes";
 import TradeupSkinGrid from "../components/TradeupSkinGrid";
 import { useTradeupOutcomes } from "../hooks/useTradeupOutcomes";
 import { useTradeupSkins } from "../hooks/useTradeupSkins";
@@ -9,13 +10,16 @@ import type {
   TradeupRarity,
   TradeupSkin,
 } from "../types/tradeup";
-import { calculateTradeupResult } from "../utils/tradeup";
+import {
+  calculateTradeupResult,
+  getRequiredTradeupInputCount,
+} from "../utils/tradeup";
 
 const initialFilters: TradeupFiltersState = {
   search: "",
   collection: "All Collections",
   sortBy: "lowest-price",
-  quality: "Restricted",
+  quality: "Consumer Grade",
 };
 
 export default function Tradeup() {
@@ -24,7 +28,6 @@ export default function Tradeup() {
 
   const {
     outcomes,
-    availableInputQualities,
     loading: outcomesLoading,
     error: outcomesError,
   } = useTradeupOutcomes(filters.quality);
@@ -34,22 +37,10 @@ export default function Tradeup() {
     collections,
     loading: skinsLoading,
     error: skinsError,
-  } = useTradeupSkins({
-    filters,
-  });
+  } = useTradeupSkins({ filters });
 
-  useEffect(() => {
-    if (
-      availableInputQualities.length > 0 &&
-      !availableInputQualities.includes(filters.quality)
-    ) {
-      setFilters((prev) => ({
-        ...prev,
-        quality: availableInputQualities[0],
-      }));
-      setSelectedSkins([]);
-    }
-  }, [availableInputQualities, filters.quality]);
+  const selectedInputRarity = selectedSkins[0]?.rarity ?? filters.quality;
+  const requiredInputCount = getRequiredTradeupInputCount(selectedInputRarity);
 
   const calculation = useMemo(() => {
     return calculateTradeupResult(selectedSkins, outcomes);
@@ -66,7 +57,15 @@ export default function Tradeup() {
   };
 
   const handleAddSkin = (skin: TradeupSkin) => {
-    if (selectedSkins.length >= 10) return;
+    const currentRarity = selectedSkins[0]?.rarity ?? skin.rarity;
+    const currentRequiredCount = getRequiredTradeupInputCount(currentRarity);
+
+    if (selectedSkins.length >= currentRequiredCount) return;
+
+    if (selectedSkins.length > 0 && skin.rarity !== selectedSkins[0].rarity) {
+      return;
+    }
+
     setSelectedSkins((prev) => [...prev, skin]);
   };
 
@@ -83,10 +82,14 @@ export default function Tradeup() {
   const isLoading = outcomesLoading || skinsLoading;
   const pageError = outcomesError || skinsError;
 
-  const qualityOptions: TradeupRarity[] =
-    availableInputQualities.length > 0
-      ? availableInputQualities
-      : [filters.quality];
+  const qualityOptions: TradeupRarity[] = [
+    "Consumer Grade",
+    "Industrial Grade",
+    "Mil-Spec",
+    "Restricted",
+    "Classified",
+    "Covert",
+  ];
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,116,144,0.45),_transparent_28%),linear-gradient(180deg,#0d5f97_0%,#0a2788_30%,#07135d_65%,#051034_100%)] text-white">
@@ -94,10 +97,9 @@ export default function Tradeup() {
         <div className="absolute -left-[12%] top-[8%] h-[520px] w-[520px] rounded-full border border-white/20" />
         <div className="absolute left-[28%] top-[-8%] h-[840px] w-[840px] rounded-full border border-white/10" />
         <div className="absolute right-[-14%] top-[10%] h-[720px] w-[720px] rounded-full border border-white/10" />
-        <div className="absolute bottom-[-12%] left-[38%] h-[560px] w-[560px] rounded-full border border-white/10" />
       </div>
 
-      <div className="relative mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-[2100px] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
@@ -107,7 +109,7 @@ export default function Tradeup() {
               Tradeup Builder
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-white/70 sm:text-base">
-              Browse all collections and qualities freely.
+              Browse collections, pick inputs, and calculate tradeup outcomes.
             </p>
           </div>
 
@@ -116,17 +118,12 @@ export default function Tradeup() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[560px_minmax(0,1fr)] 2xl:grid-cols-[620px_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           <section className="rounded-[28px] border border-white/10 bg-black/20 p-4 sm:p-5">
             <div className="mb-5 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-3xl font-semibold tracking-tight text-white">
-                  Select skins
-                </h2>
-                <p className="mt-1 text-sm font-medium text-white/55">
-                  All collections unlocked.
-                </p>
-              </div>
+              <h2 className="text-2xl font-semibold tracking-tight text-white">
+                Select skins
+              </h2>
 
               <div className="rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white/65">
                 {isLoading ? "..." : `${filteredSkins.length} results`}
@@ -140,7 +137,7 @@ export default function Tradeup() {
               onChange={handleFiltersChange}
             />
 
-            <div className="mt-5">
+            <div className="mt-5 max-h-[calc(100vh-310px)] overflow-y-auto pr-1">
               {isLoading ? (
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.03] px-6 py-12 text-center text-white/70">
                   Loading tradeup data from Firestore...
@@ -165,10 +162,12 @@ export default function Tradeup() {
 
           <TradeupBuilder
             selectedSkins={selectedSkins}
-            calculation={calculation}
+            requiredInputCount={requiredInputCount}
             onRemoveSkin={handleRemoveSkin}
             onClearSkins={handleClearSkins}
           />
+
+          <TradeupOutcomes calculation={calculation} />
         </div>
       </div>
     </main>

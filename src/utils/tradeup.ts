@@ -1,6 +1,7 @@
 import type {
   TradeupCalculatedOutcome,
   TradeupCalculationResult,
+  TradeupOutcomeRarity,
   TradeupOutcomeSkin,
   TradeupRarity,
   TradeupSkin,
@@ -8,14 +9,18 @@ import type {
   TradeupWear,
 } from "../types/tradeup";
 
-const NEXT_RARITY: Record<TradeupRarity, TradeupRarity | null> = {
+const NEXT_RARITY: Record<TradeupRarity, TradeupOutcomeRarity | null> = {
   "Consumer Grade": "Industrial Grade",
   "Industrial Grade": "Mil-Spec",
   "Mil-Spec": "Restricted",
   Restricted: "Classified",
   Classified: "Covert",
-  Covert: null,
+  Covert: "Special",
 };
+
+export function getRequiredTradeupInputCount(rarity?: TradeupRarity): number {
+  return rarity === "Covert" ? 5 : 10;
+}
 
 const EMPTY_SUMMARY: TradeupSummary = {
   averageFloat: 0,
@@ -52,6 +57,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+function normalizeCollection(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 function getFallbackPrice(outcome: TradeupOutcomeSkin): number {
   return (
     outcome.prices["Factory New"] ??
@@ -80,10 +89,7 @@ function getAverageNormalizedFloat(inputs: TradeupSkin[]): number {
 
   const total = inputs.reduce((sum, skin) => {
     const range = skin.maxFloat - skin.minFloat;
-
-    if (range <= 0) {
-      return sum;
-    }
+    if (range <= 0) return sum;
 
     const normalized = (skin.float - skin.minFloat) / range;
     return sum + clamp(normalized, 0, 1);
@@ -97,10 +103,7 @@ function getOutcomeFloat(
   outcome: TradeupOutcomeSkin,
 ): number {
   const range = outcome.maxFloat - outcome.minFloat;
-
-  if (range <= 0) {
-    return outcome.minFloat;
-  }
+  if (range <= 0) return outcome.minFloat;
 
   return clamp(
     outcome.minFloat + averageNormalizedFloat * range,
@@ -127,6 +130,40 @@ function getNegativeLossBounds(outcomes: TradeupCalculatedOutcome[]) {
   };
 }
 
+function getPartialSummary(inputs: TradeupSkin[]): TradeupSummary {
+  return {
+    ...EMPTY_SUMMARY,
+    averageFloat: getAverageInputFloat(inputs),
+    totalCost: inputs.reduce((sum, skin) => sum + skin.price, 0),
+  };
+}
+
+function getCollectionCounts(inputs: TradeupSkin[]) {
+  return inputs.reduce<Record<string, number>>((acc, skin) => {
+    const key = normalizeCollection(skin.collection);
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
+function getOutcomeCollectionKeys(outcome: TradeupOutcomeSkin) {
+  const collections =
+    outcome.sourceCollections && outcome.sourceCollections.length > 0
+      ? outcome.sourceCollections
+      : [outcome.collection];
+
+  return collections.map(normalizeCollection).filter(Boolean);
+}
+
+function getMatchedCollectionKeys(
+  outcome: TradeupOutcomeSkin,
+  inputCollectionKeys: Set<string>,
+) {
+  return getOutcomeCollectionKeys(outcome).filter((key) =>
+    inputCollectionKeys.has(key),
+  );
+}
+
 export function calculateTradeupResult(
   inputs: TradeupSkin[],
   allPossibleOutcomes: TradeupOutcomeSkin[],
@@ -140,20 +177,18 @@ export function calculateTradeupResult(
     };
   }
 
-  if (inputs.length !== 10) {
+  const baseRarity = inputs[0].rarity;
+  const requiredCount = getRequiredTradeupInputCount(baseRarity);
+
+  if (inputs.length !== requiredCount) {
     return {
       isValid: false,
-      message: "Select exactly 10 skins to calculate outcomes.",
+      message: `Select exactly ${requiredCount} skins to calculate outcomes.`,
       outcomes: [],
-      summary: {
-        ...EMPTY_SUMMARY,
-        averageFloat: getAverageInputFloat(inputs),
-        totalCost: inputs.reduce((sum, skin) => sum + skin.price, 0),
-      },
+      summary: getPartialSummary(inputs),
     };
   }
 
-  const baseRarity = inputs[0].rarity;
   const hasMixedRarities = inputs.some((skin) => skin.rarity !== baseRarity);
 
   if (hasMixedRarities) {
@@ -161,11 +196,7 @@ export function calculateTradeupResult(
       isValid: false,
       message: "All input skins must be the same rarity.",
       outcomes: [],
-      summary: {
-        ...EMPTY_SUMMARY,
-        averageFloat: getAverageInputFloat(inputs),
-        totalCost: inputs.reduce((sum, skin) => sum + skin.price, 0),
-      },
+      summary: getPartialSummary(inputs),
     };
   }
 
@@ -176,47 +207,44 @@ export function calculateTradeupResult(
       isValid: false,
       message: "These skins cannot be traded up any further.",
       outcomes: [],
-      summary: {
-        ...EMPTY_SUMMARY,
-        averageFloat: getAverageInputFloat(inputs),
-        totalCost: inputs.reduce((sum, skin) => sum + skin.price, 0),
-      },
+      summary: getPartialSummary(inputs),
     };
   }
 
-  const collectionCounts = inputs.reduce<Record<string, number>>(
-    (acc, skin) => {
-      acc[skin.collection] = (acc[skin.collection] ?? 0) + 1;
-      return acc;
-    },
-    {},
-  );
+  const collectionCounts = getCollectionCounts(inputs);
+  const inputCollectionKeys = new Set(Object.keys(collectionCounts));
 
-  const eligibleOutcomes = allPossibleOutcomes.filter(
-    (outcome) =>
-      outcome.rarity === nextRarity &&
-      Object.prototype.hasOwnProperty.call(
-        collectionCounts,
-        outcome.collection,
-      ),
-  );
+  let eligibleOutcomes = allPossibleOutcomes.filter((outcome) => {
+    if (outcome.rarity !== nextRarity) return false;
+    return getMatchedCollectionKeys(outcome, inputCollectionKeys).length > 0;
+  });
+
+  if (baseRarity === "Covert" && eligibleOutcomes.length === 0) {
+    eligibleOutcomes = allPossibleOutcomes.filter(
+      (outcome) => outcome.rarity === "Special",
+    );
+  }
 
   if (eligibleOutcomes.length === 0) {
     return {
       isValid: false,
       message: "No valid outcomes found for the selected collections.",
       outcomes: [],
-      summary: {
-        ...EMPTY_SUMMARY,
-        averageFloat: getAverageInputFloat(inputs),
-        totalCost: inputs.reduce((sum, skin) => sum + skin.price, 0),
-      },
+      summary: getPartialSummary(inputs),
     };
   }
 
-  const outcomesPerCollection = eligibleOutcomes.reduce<Record<string, number>>(
+  const outcomesByCollection = eligibleOutcomes.reduce<Record<string, number>>(
     (acc, outcome) => {
-      acc[outcome.collection] = (acc[outcome.collection] ?? 0) + 1;
+      const matchedKeys = getMatchedCollectionKeys(
+        outcome,
+        inputCollectionKeys,
+      );
+
+      for (const key of matchedKeys) {
+        acc[key] = (acc[key] ?? 0) + 1;
+      }
+
       return acc;
     },
     {},
@@ -228,10 +256,20 @@ export function calculateTradeupResult(
 
   const outcomes = eligibleOutcomes
     .map<TradeupCalculatedOutcome>((outcome) => {
-      const collectionWeight =
-        (collectionCounts[outcome.collection] ?? 0) / inputs.length;
+      const matchedKeys = getMatchedCollectionKeys(
+        outcome,
+        inputCollectionKeys,
+      );
+
       const probability =
-        collectionWeight / (outcomesPerCollection[outcome.collection] ?? 1);
+        matchedKeys.length > 0
+          ? matchedKeys.reduce((sum, key) => {
+              const inputWeight = (collectionCounts[key] ?? 0) / inputs.length;
+              const outcomeCount = outcomesByCollection[key] ?? 1;
+
+              return sum + inputWeight / outcomeCount;
+            }, 0)
+          : 1 / eligibleOutcomes.length;
 
       const outputFloat = getOutcomeFloat(averageNormalizedFloat, outcome);
       const outputWear = getWearFromFloat(outputFloat);
@@ -265,7 +303,6 @@ export function calculateTradeupResult(
     totalCost > 0 ? (expectedValue / totalCost) * 100 : 0;
 
   const averageProfit = expectedValue - totalCost;
-
   const { minLoss, maxLoss } = getNegativeLossBounds(outcomes);
 
   return {

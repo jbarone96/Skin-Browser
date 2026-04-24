@@ -6,7 +6,7 @@ interface TradeupOutcomesProps {
   calculation: TradeupCalculationResult;
 }
 
-function StatPill({
+function StatCard({
   label,
   value,
   valueClassName = "text-white",
@@ -17,12 +17,10 @@ function StatPill({
 }) {
   return (
     <div className="rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
         {label}
       </p>
-      <p className={`mt-1 text-[1.05rem] font-semibold ${valueClassName}`}>
-        {value}
-      </p>
+      <p className={`mt-1 text-lg font-semibold ${valueClassName}`}>{value}</p>
     </div>
   );
 }
@@ -31,24 +29,27 @@ export default function TradeupOutcomes({ calculation }: TradeupOutcomesProps) {
   const { isValid, message, outcomes, summary } = calculation;
 
   return (
-    <section className="mt-8">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="text-3xl font-semibold tracking-tight text-white">
+    <aside className="rounded-[28px] border border-white/10 bg-black/20 p-4 sm:p-5">
+      <div className="mb-5">
+        <h2 className="text-2xl font-semibold tracking-tight text-white">
           Outcomes
-        </h3>
+        </h2>
+        <p className="mt-1 text-sm font-medium text-white/50">
+          Expected value, odds, and possible returns.
+        </p>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4 2xl:grid-cols-8">
-        <StatPill
-          label="Average Float"
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          label="Avg Float"
           value={formatFloat12(summary.averageFloat)}
         />
-        <StatPill label="Cost" value={`$${summary.totalCost.toFixed(2)}`} />
-        <StatPill
-          label="Profit Chances"
+        <StatCard label="Cost" value={`$${summary.totalCost.toFixed(2)}`} />
+        <StatCard
+          label="Profit Chance"
           value={`${summary.profitChance.toFixed(2)}%`}
         />
-        <StatPill
+        <StatCard
           label="Profitability"
           value={`${summary.profitabilityPercent.toFixed(2)}%`}
           valueClassName={
@@ -59,8 +60,8 @@ export default function TradeupOutcomes({ calculation }: TradeupOutcomesProps) {
                 : "text-red-300"
           }
         />
-        <StatPill
-          label="Average Profit"
+        <StatCard
+          label="Avg Profit"
           value={`${summary.averageProfit >= 0 ? "+" : "-"}$${Math.abs(
             summary.averageProfit,
           ).toFixed(2)}`}
@@ -68,45 +69,31 @@ export default function TradeupOutcomes({ calculation }: TradeupOutcomesProps) {
             summary.averageProfit >= 0 ? "text-emerald-300" : "text-red-300"
           }
         />
-        <StatPill
-          label="Average Return"
+        <StatCard
+          label="Avg Return"
           value={`$${summary.expectedValue.toFixed(2)}`}
-        />
-        <StatPill
-          label="Min Loss"
-          value={
-            summary.minLoss >= 0
-              ? "$0.00"
-              : `-$${Math.abs(summary.minLoss).toFixed(2)}`
-          }
-          valueClassName={summary.minLoss < 0 ? "text-red-300" : "text-white"}
-        />
-        <StatPill
-          label="Max Loss"
-          value={
-            summary.maxLoss >= 0
-              ? "$0.00"
-              : `-$${Math.abs(summary.maxLoss).toFixed(2)}`
-          }
-          valueClassName={summary.maxLoss < 0 ? "text-red-300" : "text-white"}
         />
       </div>
 
-      {!isValid ? (
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-6 py-10 text-center">
-          <p className="text-lg font-semibold text-white">{message}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-          {outcomes.map((outcome, index) => (
-            <TradeupOutcomeCard
-              key={outcome.id}
-              outcome={outcome}
-              isBest={index === 0}
-            />
-          ))}
-        </div>
-      )}
-    </section>
+      <div className="mt-5">
+        {!isValid ? (
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.04] px-5 py-10 text-center">
+            <p className="text-sm font-semibold leading-6 text-white">
+              {message}
+            </p>
+          </div>
+        ) : (
+          <div className="grid max-h-[calc(100vh-430px)] grid-cols-1 gap-3 overflow-y-auto pr-1 2xl:grid-cols-2">
+            {outcomes.map((outcome, index) => (
+              <TradeupOutcomeCard
+                key={outcome.id}
+                outcome={outcome}
+                isBest={index === 0}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }

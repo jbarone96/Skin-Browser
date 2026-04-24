@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import type { TradeupOutcomeSkin, TradeupRarity } from "../types/tradeup";
+import type {
+  TradeupOutcomeRarity,
+  TradeupOutcomeSkin,
+  TradeupRarity,
+  TradeupWear,
+} from "../types/tradeup";
 import { db } from "../utils/firebase";
 
 interface UseTradeupOutcomesResult {
@@ -11,12 +16,13 @@ interface UseTradeupOutcomesResult {
   error: string | null;
 }
 
-const PREV_RARITY: Partial<Record<TradeupRarity, TradeupRarity>> = {
-  "Industrial Grade": "Consumer Grade",
-  "Mil-Spec": "Industrial Grade",
-  Restricted: "Mil-Spec",
-  Classified: "Restricted",
-  Covert: "Classified",
+const NEXT_RARITY: Record<TradeupRarity, TradeupOutcomeRarity> = {
+  "Consumer Grade": "Industrial Grade",
+  "Industrial Grade": "Mil-Spec",
+  "Mil-Spec": "Restricted",
+  Restricted: "Classified",
+  Classified: "Covert",
+  Covert: "Special",
 };
 
 const INPUT_QUALITY_ORDER: TradeupRarity[] = [
@@ -25,25 +31,107 @@ const INPUT_QUALITY_ORDER: TradeupRarity[] = [
   "Mil-Spec",
   "Restricted",
   "Classified",
+  "Covert",
 ];
 
+const DEFAULT_PRICES: Partial<Record<TradeupWear, number>> = {
+  "Factory New": 300,
+  "Minimal Wear": 225,
+  "Field-Tested": 150,
+  "Well-Worn": 110,
+  "Battle-Scarred": 90,
+};
+
+function normalizeRarity(value: unknown): TradeupRarity | null {
+  const rarity = String(value ?? "")
+    .trim()
+    .replace(" Grade", "")
+    .toLowerCase();
+
+  if (rarity === "consumer") return "Consumer Grade";
+  if (rarity === "industrial") return "Industrial Grade";
+  if (rarity === "mil-spec" || rarity === "milspec") return "Mil-Spec";
+  if (rarity === "restricted") return "Restricted";
+  if (rarity === "classified") return "Classified";
+  if (rarity === "covert") return "Covert";
+
+  return null;
+}
+
+function isSpecialItem(data: Record<string, unknown>) {
+  const text = [
+    data.category,
+    data.weaponType,
+    data.weapon,
+    data.name,
+    data.skinName,
+    data.fullName,
+    data.sourceType,
+  ]
+    .map((value) => String(value ?? "").toLowerCase())
+    .join(" ");
+
+  return (
+    text.includes("knife") ||
+    text.includes("knives") ||
+    text.includes("glove") ||
+    text.includes("gloves") ||
+    text.includes("★")
+  );
+}
+
+function getCollection(data: Record<string, unknown>) {
+  if (typeof data.collection === "string" && data.collection.trim()) {
+    return data.collection;
+  }
+
+  if (Array.isArray(data.collections) && data.collections[0]?.name) {
+    return String(data.collections[0].name);
+  }
+
+  return "Unknown Collection";
+}
+
+function getSourceCollections(data: Record<string, unknown>) {
+  const collections = new Set<string>();
+
+  if (typeof data.collection === "string" && data.collection.trim()) {
+    collections.add(data.collection);
+  }
+
+  if (Array.isArray(data.collections)) {
+    for (const item of data.collections) {
+      if (typeof item === "string") {
+        collections.add(item);
+      }
+
+      if (typeof item === "object" && item !== null) {
+        const collectionItem = item as Record<string, unknown>;
+
+        if (collectionItem.name) collections.add(String(collectionItem.name));
+        if (collectionItem.fullName) {
+          collections.add(String(collectionItem.fullName));
+        }
+        if (collectionItem.collection) {
+          collections.add(String(collectionItem.collection));
+        }
+      }
+    }
+  }
+
+  return [...collections];
+}
+
+function getPrices(data: Record<string, unknown>) {
+  if (typeof data.prices === "object" && data.prices !== null) {
+    return data.prices as Partial<Record<TradeupWear, number>>;
+  }
+
+  return DEFAULT_PRICES;
+}
+
 function getErrorMessage(error: unknown) {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    "message" in error
-  ) {
-    const firebaseError = error as { code?: string; message?: string };
-    return `${firebaseError.code ?? "unknown"}: ${
-      firebaseError.message ?? "Unknown Firestore error."
-    }`;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
+  if (error instanceof Error) return error.message;
   return "Unknown Firestore error.";
 }
 
@@ -62,22 +150,40 @@ export function useTradeupOutcomes(
         setLoading(true);
         setError(null);
 
-        const snapshot = await getDocs(collection(db, "tradeup_outcomes"));
+        const snapshot = await getDocs(collection(db, "skins"));
 
-        const nextOutcomes = snapshot.docs.map((doc) => {
-          const data = doc.data() as Omit<TradeupOutcomeSkin, "id">;
+        const nextOutcomes = snapshot.docs.flatMap((doc) => {
+          const data = doc.data();
+          const specialItem = isSpecialItem(data);
+          const normalizedRarity = normalizeRarity(data.rarity);
 
-          return {
-            id: doc.id,
-            ...data,
-          };
+          if (!specialItem && !normalizedRarity) {
+            return [];
+          }
+
+          const rarity: TradeupOutcomeRarity = specialItem
+            ? "Special"
+            : normalizedRarity!;
+
+          const sourceCollections = getSourceCollections(data);
+          const collection = getCollection(data);
+
+          return [
+            {
+              id: doc.id,
+              name: String(data.skinName ?? data.name ?? ""),
+              weapon: String(data.weapon ?? ""),
+              collection,
+              sourceCollections:
+                sourceCollections.length > 0 ? sourceCollections : [collection],
+              rarity,
+              minFloat: Number(data.minFloat ?? 0),
+              maxFloat: Number(data.maxFloat ?? 1),
+              image: String(data.image ?? ""),
+              prices: getPrices(data),
+            },
+          ];
         });
-
-        nextOutcomes.sort((a, b) =>
-          `${a.collection} ${a.weapon} ${a.name}`.localeCompare(
-            `${b.collection} ${b.weapon} ${b.name}`,
-          ),
-        );
 
         if (isMounted) {
           setAllOutcomes(nextOutcomes);
@@ -102,33 +208,10 @@ export function useTradeupOutcomes(
     };
   }, []);
 
-  const availableInputQualities = useMemo(() => {
-    const qualities = new Set<TradeupRarity>();
-
-    for (const outcome of allOutcomes) {
-      const inputQuality = PREV_RARITY[outcome.rarity];
-
-      if (inputQuality) {
-        qualities.add(inputQuality);
-      }
-    }
-
-    return INPUT_QUALITY_ORDER.filter((quality) => qualities.has(quality));
-  }, [allOutcomes]);
-
   const outcomes = useMemo(() => {
-    const matchingOutcomeRarity =
-      (Object.entries(PREV_RARITY).find(
-        ([, inputRarity]) => inputRarity === selectedInputQuality,
-      )?.[0] as TradeupRarity | undefined) ?? null;
+    const targetRarity = NEXT_RARITY[selectedInputQuality];
 
-    if (!matchingOutcomeRarity) {
-      return [];
-    }
-
-    return allOutcomes.filter(
-      (outcome) => outcome.rarity === matchingOutcomeRarity,
-    );
+    return allOutcomes.filter((outcome) => outcome.rarity === targetRarity);
   }, [allOutcomes, selectedInputQuality]);
 
   const collections = useMemo(() => {
@@ -140,7 +223,7 @@ export function useTradeupOutcomes(
   return {
     outcomes,
     collections,
-    availableInputQualities,
+    availableInputQualities: INPUT_QUALITY_ORDER,
     loading,
     error,
   };

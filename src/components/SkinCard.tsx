@@ -1,42 +1,64 @@
 import { Link } from "react-router-dom";
-import type { Skin } from "../types/skin";
-import { formatPrice } from "../utils/formatPrice";
+import type { SkinReference } from "../types/skin";
 
 type SkinCardProps = {
-  skin: Skin;
+  skin: SkinReference;
 };
+
+function formatFloatRange(minFloat: number | null, maxFloat: number | null) {
+  if (minFloat === null || maxFloat === null) return "N/A";
+  return `${minFloat.toFixed(2)} - ${maxFloat.toFixed(2)}`;
+}
 
 export default function SkinCard({ skin }: SkinCardProps) {
   return (
-    <Link to={`/skin/${skin.id}`} className="block">
-      <article className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 shadow-sm transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg">
-        <div className="aspect-[4/3] w-full bg-zinc-800">
+    <Link to={`/skin/${skin.id}`} className="group block">
+      <article className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-lg shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-400/20 hover:bg-white/[0.07]">
+        <div className="flex aspect-[4/3] items-center justify-center border-b border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent p-6">
           <img
             src={skin.image}
-            alt={`${skin.weapon} | ${skin.name}`}
-            className="h-full w-full object-contain p-4"
+            alt={skin.fullName}
+            className="max-h-full max-w-full object-contain transition duration-200 group-hover:scale-[1.03]"
             loading="lazy"
           />
         </div>
 
-        <div className="space-y-3 p-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-              {skin.weapon}
-            </p>
-            <h3 className="mt-1 text-lg font-semibold text-white">
-              {skin.name}
-            </h3>
+        <div className="space-y-3 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+                {skin.weaponType}
+              </p>
+
+              <h3 className="mt-1 text-base font-semibold leading-tight text-white">
+                {skin.fullName}
+              </h3>
+            </div>
+
+            {skin.rarityColor ? (
+              <span
+                className="mt-1 h-3 w-3 shrink-0 rounded-full border border-white/20"
+                style={{ backgroundColor: skin.rarityColor }}
+                aria-label={skin.rarity ?? "Rarity color"}
+              />
+            ) : null}
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <span className="rounded-md bg-zinc-800 px-2 py-1 text-xs font-medium text-zinc-300">
-              {skin.wear}
-            </span>
+          <div className="space-y-1 text-sm text-white/70">
+            <p>
+              <span className="text-white/45">Collection:</span>{" "}
+              {skin.collection ?? "N/A"}
+            </p>
 
-            <span className="text-base font-semibold text-emerald-400">
-              {formatPrice(skin.price)}
-            </span>
+            <p>
+              <span className="text-white/45">Rarity:</span>{" "}
+              {skin.rarity ?? "N/A"}
+            </p>
+
+            <p>
+              <span className="text-white/45">Float:</span>{" "}
+              {formatFloatRange(skin.minFloat, skin.maxFloat)}
+            </p>
           </div>
         </div>
       </article>

@@ -1,4 +1,5 @@
 import type { TradeupSkin } from "../types/tradeup";
+import { getWearShort } from "../utils/tradeup";
 
 interface TradeupSkinCardProps {
   skin: TradeupSkin;
@@ -16,19 +17,19 @@ export default function TradeupSkinCard({
       type="button"
       onClick={() => onAdd(skin)}
       disabled={isDisabled}
-      className="group flex min-h-[176px] flex-col overflow-hidden rounded-[22px] border border-fuchsia-400/10 bg-[linear-gradient(180deg,rgba(88,12,138,0.92)_0%,rgba(59,7,100,0.96)_100%)] p-4 text-left transition hover:-translate-y-0.5 hover:border-fuchsia-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+      className="group flex min-h-[176px] flex-col overflow-hidden rounded-[22px] border p-4 text-left transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+      style={{
+        borderColor: `${skin.rarityColor}33`,
+        background: `linear-gradient(180deg, ${skin.rarityColor}55 0%, rgba(18,17,40,0.96) 100%)`,
+      }}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="rounded-full bg-black/20 px-2 py-1 text-[11px] font-semibold text-white/75">
+        <span className="rounded-full bg-black/25 px-2 py-1 text-[11px] font-semibold text-white/85">
           ${skin.price.toFixed(2)}
         </span>
 
-        <span className="rounded-full bg-black/20 px-2 py-1 text-[11px] font-semibold text-white/75">
-          {skin.wear === "Factory New"
-            ? "FN"
-            : skin.wear === "Minimal Wear"
-              ? "MW"
-              : skin.wear}
+        <span className="rounded-full bg-black/25 px-2 py-1 text-[11px] font-semibold text-white/85">
+          {getWearShort(skin.wear)}
         </span>
       </div>
 
@@ -46,6 +47,9 @@ export default function TradeupSkinCard({
           {skin.weapon}
         </p>
         <p className="mt-1 text-sm font-medium text-white/85">{skin.name}</p>
+        <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
+          {skin.rarity}
+        </p>
       </div>
     </button>
   );

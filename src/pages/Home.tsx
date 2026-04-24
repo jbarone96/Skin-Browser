@@ -48,28 +48,28 @@ export default function Home() {
   }, [skins]);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,116,144,0.45),_transparent_28%),linear-gradient(180deg,#0d5f97_0%,#0a2788_30%,#07135d_65%,#051034_100%)] px-4 py-8 text-white sm:px-6 lg:px-8">
+    <main className="min-h-screen px-4 py-8 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px]">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300/70">
               Skin Browser
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
               Skin Reference
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-white/70 sm:text-base">
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-white/65 sm:text-base">
               Live from Firestore now. Browse your imported CS item reference
               data with search and simple filtering.
             </p>
           </div>
 
-          <div className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold text-white/75">
+          <div className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/75 backdrop-blur-xl">
             {stats.total} results
           </div>
         </div>
 
-        <section className="mb-8 rounded-[28px] border border-white/10 bg-black/20 p-4 sm:p-5">
+        <section className="mb-8 rounded-[28px] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-5">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
             <div>
               <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
@@ -80,7 +80,7 @@ export default function Home() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search skin, weapon, or collection..."
-                className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white placeholder:text-white/45 focus:border-white/20 focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white placeholder:text-white/40 transition focus:border-cyan-400/40 focus:bg-black/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
               />
             </div>
 
@@ -93,7 +93,7 @@ export default function Home() {
                 onChange={(event) =>
                   setWeapon(event.target.value as SkinCategory | "All")
                 }
-                className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white focus:border-white/20 focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white focus:border-cyan-400/40 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
               >
                 {weaponFilters.map((filter) => (
                   <option key={filter} value={filter}>
@@ -112,7 +112,7 @@ export default function Home() {
                 onChange={(event) =>
                   setWear(event.target.value as (typeof wearFilters)[number])
                 }
-                className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white focus:border-white/20 focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white focus:border-cyan-400/40 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
               >
                 {wearFilters.map((filter) => (
                   <option key={filter} value={filter}>
@@ -125,15 +125,15 @@ export default function Home() {
         </section>
 
         {loading ? (
-          <div className="rounded-[28px] border border-white/10 bg-black/20 px-6 py-16 text-center text-white/75">
+          <div className="rounded-[28px] border border-white/10 bg-white/[0.045] px-6 py-16 text-center text-white/75 backdrop-blur-xl">
             Loading skins from Firestore...
           </div>
         ) : error ? (
-          <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 px-6 py-16 text-center text-red-100">
+          <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 px-6 py-16 text-center text-red-100 backdrop-blur-xl">
             {error}
           </div>
         ) : skins.length === 0 ? (
-          <div className="rounded-[28px] border border-white/10 bg-black/20 px-6 py-16 text-center text-white/75">
+          <div className="rounded-[28px] border border-white/10 bg-white/[0.045] px-6 py-16 text-center text-white/75 backdrop-blur-xl">
             No skins found.
           </div>
         ) : (
@@ -141,10 +141,10 @@ export default function Home() {
             {skins.map((skin) => (
               <Link
                 key={skin.id}
-                to={`/skins/${skin.id}`}
-                className="group overflow-hidden rounded-[28px] border border-white/10 bg-black/25 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-black/35"
+                to={`/skin/${skin.id}`}
+                className="group overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-lg shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-400/20 hover:bg-white/[0.07]"
               >
-                <div className="flex aspect-[4/3] items-center justify-center border-b border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent p-6">
+                <div className="flex aspect-[4/3] items-center justify-center border-b border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent p-6">
                   <img
                     src={skin.image}
                     alt={skin.fullName}

@@ -6,6 +6,8 @@ export type TradeupRarity =
   | "Classified"
   | "Covert";
 
+export type TradeupOutcomeRarity = TradeupRarity | "Special";
+
 export type TradeupWear =
   | "Factory New"
   | "Minimal Wear"
@@ -19,6 +21,7 @@ export interface TradeupSkin {
   weapon: string;
   collection: string;
   rarity: TradeupRarity;
+  rarityColor: string;
   wear: TradeupWear;
   float: number;
   minFloat: number;
@@ -32,7 +35,8 @@ export interface TradeupOutcomeSkin {
   name: string;
   weapon: string;
   collection: string;
-  rarity: TradeupRarity;
+  sourceCollections?: string[];
+  rarity: TradeupOutcomeRarity;
   minFloat: number;
   maxFloat: number;
   image: string;
