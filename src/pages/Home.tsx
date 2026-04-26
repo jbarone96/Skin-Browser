@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { FaChevronDown } from "react-icons/fa";
 import { useSkins } from "../hooks/useSkins";
 import type { SkinCategory } from "../types/skin";
 
@@ -13,15 +15,6 @@ const weaponFilters: Array<SkinCategory | "All"> = [
   "Heavy",
 ];
 
-const wearFilters = [
-  "All",
-  "Factory New",
-  "Minimal Wear",
-  "Field-Tested",
-  "Well-Worn",
-  "Battle-Scarred",
-];
-
 function formatFloatRange(minFloat: number | null, maxFloat: number | null) {
   if (minFloat === null || maxFloat === null) {
     return "N/A";
@@ -30,15 +23,69 @@ function formatFloatRange(minFloat: number | null, maxFloat: number | null) {
   return `${minFloat.toFixed(2)} - ${maxFloat.toFixed(2)}`;
 }
 
+type FilterDropdownProps<T extends string> = {
+  label: string;
+  value: T;
+  options: T[];
+  onChange: (value: T) => void;
+};
+
+function FilterDropdown<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: FilterDropdownProps<T>) {
+  return (
+    <div>
+      <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
+        {label}
+      </label>
+
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-white/10 to-white/[0.03] px-4 py-3 text-sm font-medium text-white shadow-inner shadow-white/5 transition hover:border-white/20 hover:from-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-400/20">
+            <span className="truncate">{value}</span>
+            <FaChevronDown className="ml-auto shrink-0 text-[10px] text-zinc-400" />
+          </button>
+        </DropdownMenu.Trigger>
+
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            sideOffset={8}
+            align="end"
+            className="custom-scrollbar z-[999] max-h-80 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-2xl border border-white/10 bg-[#080d18]/95 p-2 shadow-2xl shadow-black/50 outline-none backdrop-blur-2xl data-[state=open]:animate-[localeDropdownIn_160ms_ease-out] data-[state=closed]:animate-[localeDropdownOut_120ms_ease-in]"
+          >
+            {options.map((option) => (
+              <DropdownMenu.Item
+                key={option}
+                onClick={() => onChange(option)}
+                className={`flex cursor-pointer select-none items-center justify-between rounded-xl px-4 py-3 text-sm outline-none transition ${
+                  value === option
+                    ? "bg-cyan-400/10 text-cyan-300"
+                    : "text-zinc-300 hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white"
+                }`}
+              >
+                <span className="truncate">{option}</span>
+                {value === option && <span className="text-cyan-300">✓</span>}
+              </DropdownMenu.Item>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </div>
+  );
+}
+
 export default function Home() {
   const [search, setSearch] = useState("");
   const [weapon, setWeapon] = useState<SkinCategory | "All">("All");
-  const [wear, setWear] = useState<(typeof wearFilters)[number]>("All");
+  const [collectionFilter, setCollectionFilter] = useState<string>("All");
 
-  const { skins, loading, error } = useSkins({
+  const { skins, allSkins, loading, error } = useSkins({
     search,
     weapon,
-    wear,
+    collection: collectionFilter,
   });
 
   const stats = useMemo(() => {
@@ -47,20 +94,31 @@ export default function Home() {
     };
   }, [skins]);
 
+  const collectionFilters = useMemo(() => {
+    const collections = allSkins
+      .map((skin) => skin.collection)
+      .filter((collection): collection is string => Boolean(collection))
+      .sort((a, b) => a.localeCompare(b));
+
+    return ["All", ...Array.from(new Set(collections))];
+  }, [allSkins]);
+
   return (
     <main className="min-h-screen px-4 py-8 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px]">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300/70">
-              Skin Browser
+            <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-cyan-300/60">
+              CS Skin Database
             </p>
+
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-              Skin Reference
+              Skin Vault
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-white/65 sm:text-base">
-              Live from Firestore now. Browse your imported CS item reference
-              data with search and simple filtering.
+
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/60 sm:text-base">
+              Your complete CS skin vault — explore, filter, and analyze every
+              item in one place.
             </p>
           </div>
 
@@ -70,7 +128,7 @@ export default function Home() {
         </div>
 
         <section className="mb-8 rounded-[28px] border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-5">
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_260px]">
             <div>
               <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
                 Search
@@ -84,49 +142,40 @@ export default function Home() {
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
-                Weapon Type
-              </label>
-              <select
-                value={weapon}
-                onChange={(event) =>
-                  setWeapon(event.target.value as SkinCategory | "All")
-                }
-                className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white focus:border-cyan-400/40 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
-              >
-                {weaponFilters.map((filter) => (
-                  <option key={filter} value={filter}>
-                    {filter}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <FilterDropdown
+              label="Weapon Type"
+              value={weapon}
+              options={weaponFilters}
+              onChange={setWeapon}
+            />
 
-            <div>
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
-                Wear
-              </label>
-              <select
-                value={wear}
-                onChange={(event) =>
-                  setWear(event.target.value as (typeof wearFilters)[number])
-                }
-                className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-medium text-white focus:border-cyan-400/40 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
-              >
-                {wearFilters.map((filter) => (
-                  <option key={filter} value={filter}>
-                    {filter}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <FilterDropdown
+              label="Collection"
+              value={collectionFilter}
+              options={collectionFilters}
+              onChange={setCollectionFilter}
+            />
           </div>
         </section>
 
         {loading ? (
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.045] px-6 py-16 text-center text-white/75 backdrop-blur-xl">
-            Loading skins from Firestore...
+          <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.045] px-6 py-16 backdrop-blur-xl">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative h-14 w-14">
+                <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+                <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-r-cyan-300 border-t-cyan-300" />
+                <div className="absolute inset-3 rounded-full bg-cyan-300/10 blur-md" />
+              </div>
+
+              <div className="text-center">
+                <p className="text-sm font-semibold text-white/85">
+                  Loading skins
+                </p>
+                <p className="mt-1 text-xs text-white/45">
+                  Fetching latest item data...
+                </p>
+              </div>
+            </div>
           </div>
         ) : error ? (
           <div className="rounded-[28px] border border-red-400/20 bg-red-500/10 px-6 py-16 text-center text-red-100 backdrop-blur-xl">
@@ -183,7 +232,7 @@ export default function Home() {
                       {skin.rarity ?? "N/A"}
                     </p>
                     <p>
-                      <span className="text-white/45">Float:</span>{" "}
+                      <span className="text-white/45">Float Range:</span>{" "}
                       {formatFloatRange(skin.minFloat, skin.maxFloat)}
                     </p>
                   </div>

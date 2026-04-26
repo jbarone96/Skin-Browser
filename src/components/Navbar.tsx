@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { FaSteam } from "react-icons/fa";
 import { useSteamAuth } from "../hooks/useSteamAuth";
 import { useSkins } from "../hooks/useSkins";
@@ -20,11 +20,20 @@ const SECONDARY_ITEMS = [
 ];
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
-  return isActive ? "text-white" : "text-zinc-300 transition hover:text-white";
+  return [
+    "rounded-full px-3.5 py-2 text-sm font-medium transition",
+    isActive
+      ? "bg-white/10 text-white shadow-sm shadow-cyan-500/10"
+      : "text-zinc-400 hover:bg-white/5 hover:text-white",
+  ].join(" ");
 }
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isHomePage = location.pathname === "/";
+
   const { user, isAuthenticated, isLoading, signIn, signOut } = useSteamAuth();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -44,6 +53,10 @@ export default function Navbar() {
     };
   }, [isMenuOpen]);
 
+  useEffect(() => {
+    closeMenu();
+  }, [location.pathname]);
+
   function closeMenu() {
     setIsMenuOpen(false);
   }
@@ -55,29 +68,30 @@ export default function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
-      <div className="relative mx-auto max-w-[2100px] px-4 sm:px-6 lg:px-8">
-        <div className="flex h-20 items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link
-              to="/"
-              className="flex items-center gap-3"
-              onClick={closeMenu}
-            >
-              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-zinc-900">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-[#070b18]/85 backdrop-blur-2xl">
+      <div className="mx-auto max-w-[2100px] px-4 sm:px-6 lg:px-8">
+        <div className="flex min-h-20 items-center justify-between gap-4">
+          <div className="flex min-w-0 shrink-0 items-center gap-6">
+            <Link to="/" className="flex items-center gap-3">
+              <div className="flex items-center justify-center">
                 <img
                   src={logo}
                   alt="Skin Browser logo"
-                  className="h-12 w-12 object-contain"
+                  className="h-24 w-24 object-contain"
                 />
               </div>
 
-              <span className="hidden font-bold text-white sm:block">
-                Skin Browser
-              </span>
+              <div className="hidden leading-tight sm:block">
+                <p className="text-sm font-bold tracking-wide text-white">
+                  Skin Browser
+                </p>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300/70">
+                  CS2 Skins
+                </p>
+              </div>
             </Link>
 
-            <nav className="hidden gap-6 lg:flex">
+            <nav className="hidden items-center gap-1 lg:flex">
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.label}
@@ -90,42 +104,34 @@ export default function Navbar() {
             </nav>
           </div>
 
-          <div className="relative flex flex-1 items-center justify-end gap-3">
-            <div className="hidden w-full max-w-[640px] xl:block">
-              <SearchBar
-                value={search}
-                onChange={setSearch}
-                skins={skins}
-                onSelectSkin={handleSelectSkin}
-                compact
-              />
-            </div>
+          <div className="relative flex min-w-0 flex-1 items-center justify-end gap-3">
+            {!isHomePage && (
+              <div className="hidden w-full max-w-[560px] min-w-[260px] xl:block">
+                <SearchBar
+                  value={search}
+                  onChange={setSearch}
+                  skins={skins}
+                  onSelectSkin={handleSelectSkin}
+                  compact
+                />
+              </div>
+            )}
 
-            <div className="hidden xl:block">
+            <div className="hidden shrink-0 lg:block">
               <LocaleDropdown />
             </div>
 
-            {!isLoading && !isAuthenticated && (
-              <button
-                onClick={signIn}
-                className="hidden items-center gap-2 rounded-full bg-[#171a21] px-4 py-2 text-white transition hover:bg-[#1f2530] lg:flex"
-              >
-                <FaSteam className="text-lg" />
-                <span>Sign in</span>
-              </button>
-            )}
-
             {isLoading ? (
-              <div className="hidden rounded-full bg-white/5 px-4 py-2 text-sm text-zinc-400 lg:block">
-                Loading...
+              <div className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-zinc-400 lg:block">
+                Checking...
               </div>
             ) : isAuthenticated && user ? (
-              <div className="hidden items-center gap-3 lg:flex">
+              <div className="hidden shrink-0 items-center gap-2 lg:flex">
                 <a
                   href={user.profileUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:bg-white/10"
+                  className="group flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] py-1.5 pl-1.5 pr-3 transition hover:border-cyan-300/30 hover:bg-white/10"
                 >
                   {user.avatar ? (
                     <img
@@ -134,30 +140,38 @@ export default function Navbar() {
                       className="h-8 w-8 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-700 text-xs font-semibold text-white">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-500/10 text-xs font-bold text-cyan-300">
                       {user.displayName.slice(0, 2).toUpperCase()}
                     </div>
                   )}
 
-                  <span className="hidden max-w-[140px] truncate text-sm font-medium text-white xl:block">
+                  <span className="max-w-[150px] truncate text-sm font-semibold text-white">
                     {user.displayName}
                   </span>
                 </a>
 
                 <button
                   onClick={() => void signOut()}
-                  className="rounded-full bg-white/5 px-4 py-2 text-white hover:bg-white/10"
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/10 hover:text-white"
                 >
                   Sign out
                 </button>
               </div>
-            ) : null}
+            ) : (
+              <button
+                onClick={signIn}
+                className="hidden shrink-0 items-center gap-2 rounded-full bg-[#171a21] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1f2530] lg:flex"
+              >
+                <FaSteam className="text-lg" />
+                <span>Sign in</span>
+              </button>
+            )}
 
             <button
               onClick={() => setIsMenuOpen((prev) => !prev)}
               aria-label={isMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={isMenuOpen}
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white lg:hidden"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/10 lg:hidden"
             >
               <span className="relative block h-5 w-5">
                 <span
@@ -181,71 +195,86 @@ export default function Navbar() {
             {isMenuOpen && (
               <>
                 <div
-                  className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+                  className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
                   onClick={closeMenu}
                 />
 
-                <div className="absolute right-0 top-16 z-50 w-72 rounded-2xl border border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur-xl">
-                  <div className="space-y-4 p-4">
-                    <SearchBar
-                      value={search}
-                      onChange={setSearch}
-                      skins={skins}
-                      onSelectSkin={handleSelectSkin}
-                      compact
-                    />
+                <div className="absolute right-0 top-16 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-[#090d1a]/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+                  <div className="space-y-4">
+                    {!isHomePage && (
+                      <SearchBar
+                        value={search}
+                        onChange={setSearch}
+                        skins={skins}
+                        onSelectSkin={handleSelectSkin}
+                        compact
+                      />
+                    )}
 
                     <LocaleDropdown variant="mobile" />
 
-                    <div>
-                      {isLoading ? (
-                        <div className="text-zinc-400">Loading...</div>
-                      ) : isAuthenticated && user ? (
-                        <div className="space-y-3">
-                          <div className="rounded-xl bg-white/5 px-4 py-3">
-                            <div className="text-sm text-white">
-                              {user.displayName}
+                    {isLoading ? (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-400">
+                        Checking Steam session...
+                      </div>
+                    ) : isAuthenticated && user ? (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                        <div className="flex items-center gap-3">
+                          {user.avatar ? (
+                            <img
+                              src={user.avatar}
+                              alt={user.displayName}
+                              className="h-10 w-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/10 text-sm font-bold text-cyan-300">
+                              {user.displayName.slice(0, 2).toUpperCase()}
                             </div>
-                            <div className="mt-1 truncate text-xs text-zinc-400">
-                              {user.steamId}
-                            </div>
-                          </div>
+                          )}
 
-                          <button
-                            onClick={() => {
-                              void signOut();
-                              closeMenu();
-                            }}
-                            className="w-full rounded-xl bg-white/5 py-2 text-white hover:bg-white/10"
-                          >
-                            Sign out
-                          </button>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-white">
+                              {user.displayName}
+                            </p>
+                            <p className="truncate text-xs text-zinc-500">
+                              {user.steamId}
+                            </p>
+                          </div>
                         </div>
-                      ) : (
+
                         <button
                           onClick={() => {
+                            void signOut();
                             closeMenu();
-                            signIn();
                           }}
-                          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#171a21] py-3 text-white hover:bg-[#1f2530]"
+                          className="mt-3 w-full rounded-xl bg-white/5 py-2 text-sm font-medium text-white transition hover:bg-white/10"
                         >
-                          <FaSteam className="text-lg" />
-                          Sign in with Steam
+                          Sign out
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          closeMenu();
+                          signIn();
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#171a21] py-3 text-sm font-semibold text-white transition hover:bg-[#1f2530]"
+                      >
+                        <FaSteam className="text-lg" />
+                        Sign in with Steam
+                      </button>
+                    )}
 
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       {NAV_ITEMS.map((item) => (
                         <NavLink
                           key={item.label}
                           to={item.href}
-                          onClick={closeMenu}
                           className={({ isActive }) =>
-                            `block rounded-xl px-4 py-2 ${
+                            `block rounded-xl px-4 py-2.5 text-sm font-medium transition ${
                               isActive
                                 ? "bg-white/10 text-white"
-                                : "text-zinc-300 hover:bg-white/5"
+                                : "text-zinc-300 hover:bg-white/5 hover:text-white"
                             }`
                           }
                         >
@@ -254,17 +283,16 @@ export default function Navbar() {
                       ))}
                     </div>
 
-                    <div className="space-y-2 border-t border-white/10 pt-3">
+                    <div className="space-y-1 border-t border-white/10 pt-3">
                       {SECONDARY_ITEMS.map((item) => (
                         <NavLink
                           key={item.label}
                           to={item.href}
-                          onClick={closeMenu}
                           className={({ isActive }) =>
-                            `block rounded-xl px-4 py-2 ${
+                            `block rounded-xl px-4 py-2.5 text-sm font-medium transition ${
                               isActive
                                 ? "bg-white/10 text-white"
-                                : "text-zinc-400 hover:bg-white/5"
+                                : "text-zinc-400 hover:bg-white/5 hover:text-white"
                             }`
                           }
                         >

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-type SteamUser = {
+export type SteamUser = {
   steamId: string;
   displayName: string;
   avatar: string;
@@ -29,7 +29,7 @@ export function useSteamAuth() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to load auth state.");
+        throw new Error("Failed to load Steam auth state.");
       }
 
       const data = (await response.json()) as AuthResponse;
@@ -57,10 +57,10 @@ export function useSteamAuth() {
       });
     } catch (error) {
       console.error(error);
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
     }
-
-    setUser(null);
-    setIsAuthenticated(false);
   }, []);
 
   useEffect(() => {

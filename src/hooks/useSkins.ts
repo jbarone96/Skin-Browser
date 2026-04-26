@@ -7,6 +7,7 @@ interface UseSkinsOptions {
   search?: string;
   weapon?: SkinCategory | "All";
   wear?: string | "All";
+  collection?: string | "All";
 }
 
 interface UseSkinsResult {
@@ -17,7 +18,47 @@ interface UseSkinsResult {
 }
 
 function normalizeString(value: string) {
-  return value.trim().toLowerCase();
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getWearName(wear: unknown) {
+  if (typeof wear === "string") return wear;
+
+  if (
+    typeof wear === "object" &&
+    wear !== null &&
+    "name" in wear &&
+    typeof wear.name === "string"
+  ) {
+    return wear.name;
+  }
+
+  return "";
+}
+
+function getSearchableSkinText(skin: SkinReference) {
+  return normalizeString(
+    [
+      skin.fullName,
+      skin.name,
+      skin.skinName,
+      skin.weapon,
+      skin.weaponType,
+      skin.category,
+      skin.collection,
+      skin.rarity,
+      skin.marketHashName,
+      ...(skin.collections ?? []).map((collection) => collection.name),
+      ...(skin.wears ?? []).map(getWearName),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
 }
 
 function getErrorMessage(error: unknown) {
@@ -28,7 +69,10 @@ function getErrorMessage(error: unknown) {
     "message" in error
   ) {
     const firebaseError = error as { code?: string; message?: string };
-    return `${firebaseError.code ?? "unknown"}: ${firebaseError.message ?? "Unknown Firestore error."}`;
+
+    return `${firebaseError.code ?? "unknown"}: ${
+      firebaseError.message ?? "Unknown Firestore error."
+    }`;
   }
 
   if (error instanceof Error) {
@@ -46,6 +90,7 @@ export function useSkins(options?: UseSkinsOptions): UseSkinsResult {
   const search = options?.search ?? "";
   const weapon = options?.weapon ?? "All";
   const wear = options?.wear ?? "All";
+  const collectionFilter = options?.collection ?? "All";
 
   useEffect(() => {
     let isMounted = true;
@@ -101,23 +146,40 @@ export function useSkins(options?: UseSkinsOptions): UseSkinsResult {
 
   const skins = useMemo(() => {
     const normalizedSearch = normalizeString(search);
+    const normalizedWear = normalizeString(wear);
+    const normalizedCollection = normalizeString(collectionFilter);
 
     return allSkins.filter((skin) => {
+      const searchableText = getSearchableSkinText(skin);
+
       const matchesSearch =
         normalizedSearch.length === 0 ||
-        normalizeString(skin.fullName).includes(normalizedSearch) ||
-        normalizeString(skin.weapon).includes(normalizedSearch) ||
-        normalizeString(skin.skinName).includes(normalizedSearch) ||
-        normalizeString(skin.collection ?? "").includes(normalizedSearch);
+        searchableText.includes(normalizedSearch);
 
       const matchesWeapon = weapon === "All" || skin.weaponType === weapon;
+
       const matchesWear =
         wear === "All" ||
-        (Array.isArray(skin.wears) && skin.wears.includes(wear));
+        (Array.isArray(skin.wears) &&
+          skin.wears.some(
+            (skinWear) =>
+              normalizeString(getWearName(skinWear)) === normalizedWear,
+          ));
 
-      return matchesSearch && matchesWeapon && matchesWear;
+      const skinCollectionNames = [
+        skin.collection,
+        ...(skin.collections ?? []).map((collection) => collection.name),
+      ]
+        .filter(Boolean)
+        .map((collection) => normalizeString(String(collection)));
+
+      const matchesCollection =
+        collectionFilter === "All" ||
+        skinCollectionNames.includes(normalizedCollection);
+
+      return matchesSearch && matchesWeapon && matchesWear && matchesCollection;
     });
-  }, [allSkins, search, weapon, wear]);
+  }, [allSkins, search, weapon, wear, collectionFilter]);
 
   return {
     skins,
