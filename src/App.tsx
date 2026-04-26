@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Inventory from "./pages/Inventory";
 import SkinDetail from "./pages/SkinDetail";
 import Tradeup from "./pages/Tradeup";
+import GameItemSkins from "./pages/GameItemSkins";
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/tradeup" element={<Tradeup />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/items" element={<GameItems />} />
+          <Route path="/items/:category/:value" element={<GameItemSkins />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<About />} />
         </Routes>

@@ -20,4 +20,5 @@ export interface GameItem {
   image?: string;
   colorHex?: string;
   sourceId?: string;
+  sourceName?: string;
 }

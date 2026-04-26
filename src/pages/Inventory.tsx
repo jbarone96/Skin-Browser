@@ -16,6 +16,12 @@ import type { SkinReference } from "../types/skin";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
+type AppliedInventoryItem = {
+  type: "sticker" | "charm";
+  name: string;
+  imageUrl: string;
+};
+
 type InventoryItem = {
   assetId: string;
   classId: string;
@@ -31,6 +37,7 @@ type InventoryItem = {
   tradable: boolean;
   marketable: boolean;
   inspectLink?: string;
+  appliedItems?: AppliedInventoryItem[];
   imageUrl: string;
   marketUrl: string;
   price?: number;
@@ -50,6 +57,20 @@ type InventoryResponse = {
   total: number;
   rows?: number;
   items: InventoryItem[];
+};
+
+type PriceResult = {
+  marketName: string;
+  lowestPrice: string | null;
+  medianPrice: string | null;
+  volume: string | null;
+  lowestPriceNumber: number | null;
+  medianPriceNumber: number | null;
+  error: string | null;
+};
+
+type PriceLookupResponse = {
+  results: PriceResult[];
 };
 
 type SortOption =
@@ -83,17 +104,20 @@ const EXTERIOR_RANK: Record<string, number> = {
   "Field-Tested": 3,
   "Well-Worn": 4,
   "Battle-Scarred": 5,
+  "Not Painted": 6,
 };
 
 const RARITY_RANK: Record<string, number> = {
   Contraband: 1,
-  Covert: 2,
-  Classified: 3,
-  Restricted: 4,
-  "Mil-Spec Grade": 5,
-  Industrial: 6,
-  "Consumer Grade": 7,
-  Base: 8,
+  Extraordinary: 2,
+  Covert: 3,
+  Classified: 4,
+  Restricted: 5,
+  "Mil-Spec Grade": 6,
+  Industrial: 7,
+  "Industrial Grade": 7,
+  "Consumer Grade": 8,
+  Base: 9,
 };
 
 function normalizeString(value: string) {
@@ -105,6 +129,44 @@ function normalizeString(value: string) {
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function getRarityPillClass(rarity: string) {
+  const normalized = normalizeString(rarity);
+
+  if (normalized.includes("contraband")) {
+    return "border-yellow-300/35 bg-yellow-400/15 text-yellow-200 shadow-yellow-500/10";
+  }
+
+  if (normalized.includes("extraordinary")) {
+    return "border-amber-300/35 bg-amber-400/15 text-amber-200 shadow-amber-500/10";
+  }
+
+  if (normalized.includes("covert")) {
+    return "border-red-400/35 bg-red-500/15 text-red-200 shadow-red-500/10";
+  }
+
+  if (normalized.includes("classified")) {
+    return "border-fuchsia-400/35 bg-fuchsia-500/15 text-fuchsia-200 shadow-fuchsia-500/10";
+  }
+
+  if (normalized.includes("restricted")) {
+    return "border-purple-400/35 bg-purple-500/15 text-purple-200 shadow-purple-500/10";
+  }
+
+  if (normalized.includes("mil spec")) {
+    return "border-blue-400/35 bg-blue-500/15 text-blue-200 shadow-blue-500/10";
+  }
+
+  if (normalized.includes("industrial")) {
+    return "border-sky-300/35 bg-sky-400/15 text-sky-200 shadow-sky-500/10";
+  }
+
+  if (normalized.includes("consumer")) {
+    return "border-zinc-300/25 bg-zinc-300/10 text-zinc-200 shadow-zinc-500/10";
+  }
+
+  return "border-cyan-300/15 bg-cyan-400/10 text-cyan-200 shadow-cyan-500/10";
 }
 
 function stripWearSuffix(value: string) {
@@ -222,7 +284,14 @@ function enrichInventoryItems(
   });
 }
 
-function getPrice(item: InventoryItem) {
+function getPrice(item: InventoryItem, priceMap: Record<string, PriceResult>) {
+  const key = item.marketName || item.name;
+
+  const mapPrice =
+    priceMap[key]?.lowestPriceNumber ?? priceMap[key]?.medianPriceNumber;
+
+  if (typeof mapPrice === "number") return mapPrice;
+
   return typeof item.price === "number" ? item.price : 0;
 }
 
@@ -244,6 +313,7 @@ function sortInventoryItems(
   items: EnrichedInventoryItem[],
   sort: SortOption,
   floatMap: Record<string, number>,
+  priceMap: Record<string, PriceResult>,
 ) {
   return [...items].sort((a, b) => {
     switch (sort) {
@@ -254,10 +324,10 @@ function sortInventoryItems(
         return b.name.localeCompare(a.name);
 
       case "price-desc":
-        return getPrice(b) - getPrice(a);
+        return getPrice(b, priceMap) - getPrice(a, priceMap);
 
       case "price-asc":
-        return getPrice(a) - getPrice(b);
+        return getPrice(a, priceMap) - getPrice(b, priceMap);
 
       case "float-asc": {
         const aFloat = getItemFloat(a, floatMap);
@@ -353,6 +423,10 @@ export default function Inventory() {
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState("");
   const [floatMap, setFloatMap] = useState<Record<string, number>>({});
+  const [priceMap, setPriceMap] = useState<Record<string, PriceResult>>({});
+  const [priceLoadingMap, setPriceLoadingMap] = useState<
+    Record<string, boolean>
+  >({});
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOption>("name-asc");
 
@@ -391,8 +465,106 @@ export default function Inventory() {
         })
       : enrichedItems;
 
-    return sortInventoryItems(searchedItems, sort, floatMap);
-  }, [enrichedItems, search, sort, floatMap]);
+    return sortInventoryItems(searchedItems, sort, floatMap, priceMap);
+  }, [enrichedItems, search, sort, floatMap, priceMap]);
+
+  async function loadPriceForItem(item: InventoryItem) {
+    const marketName = item.marketName || item.name;
+
+    if (!marketName || priceMap[marketName] || priceLoadingMap[marketName]) {
+      return;
+    }
+
+    try {
+      setPriceLoadingMap((current) => ({
+        ...current,
+        [marketName]: true,
+      }));
+
+      const response = await fetch(`${API_BASE_URL}/steam/prices`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: [
+            {
+              name: item.name,
+              marketName,
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load Steam price");
+      }
+
+      const data = (await response.json()) as PriceLookupResponse;
+      const result = data.results[0];
+
+      if (result) {
+        setPriceMap((current) => ({
+          ...current,
+          [marketName]: result,
+        }));
+      }
+    } catch (error) {
+      console.error("Steam price fetch failed:", error);
+    } finally {
+      setPriceLoadingMap((current) => ({
+        ...current,
+        [marketName]: false,
+      }));
+    }
+  }
+
+  async function loadFloats(nextItems: InventoryItem[]) {
+    const itemsWithInspectLinks = nextItems
+      .filter((item) => item.inspectLink)
+      .slice(0, 120);
+
+    if (itemsWithInspectLinks.length === 0) {
+      setFloatMap({});
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/steam/floats`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: itemsWithInspectLinks.map((item) => ({
+            assetId: item.assetId,
+            inspectLink: item.inspectLink,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load floats");
+      }
+
+      const data = await response.json();
+
+      const nextFloatMap: Record<string, number> = {};
+
+      data.results.forEach((result: any) => {
+        if (typeof result.floatValue === "number") {
+          nextFloatMap[result.assetId] = result.floatValue;
+        }
+      });
+
+      setFloatMap(nextFloatMap);
+    } catch (error) {
+      console.error("Float fetch failed:", error);
+      setFloatMap({});
+    }
+  }
 
   async function loadInventory() {
     try {
@@ -405,25 +577,30 @@ export default function Inventory() {
       });
 
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
+        const errData = await response.json().catch(() => null);
 
         throw new Error(
-          data?.message ||
+          errData?.message ||
             "Unable to load Steam inventory. Make sure your inventory is public.",
         );
       }
 
       const data = (await response.json()) as InventoryResponse;
 
-      setItems(Array.isArray(data.items) ? data.items : []);
+      const safeItems = Array.isArray(data.items) ? data.items : [];
+
+      setItems(safeItems);
       setTotal(data.total);
-      setRows(data.rows ?? data.items.length);
+      setRows(data.rows ?? safeItems.length);
+
+      void loadFloats(safeItems);
     } catch (error) {
       console.error(error);
       setItems([]);
       setTotal(0);
       setRows(0);
       setFloatMap({});
+      setPriceMap({});
       setInventoryError(
         error instanceof Error
           ? error.message
@@ -640,94 +817,170 @@ export default function Inventory() {
                 </div>
               ) : filteredItems.length > 0 ? (
                 <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                  {filteredItems.map((item) => (
-                    <article
-                      key={item.assetId}
-                      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/25 transition hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-white/[0.06]"
-                    >
-                      <div className="relative flex aspect-square items-center justify-center bg-gradient-to-b from-white/[0.06] to-black/20 p-5">
-                        {item.amount > 1 && (
-                          <span className="absolute right-3 top-3 rounded-full border border-cyan-300/20 bg-cyan-400/15 px-2.5 py-1 text-xs font-bold text-cyan-100">
-                            x{item.amount}
-                          </span>
-                        )}
+                  {filteredItems.map((item) => {
+                    const marketName = item.marketName || item.name;
+                    const priceData = priceMap[marketName];
+                    const isPriceLoading = priceLoadingMap[marketName];
 
-                        {item.matchedSkinId && (
-                          <span className="absolute left-3 top-3 rounded-full border border-emerald-300/20 bg-emerald-400/15 px-2.5 py-1 text-[11px] font-bold text-emerald-100">
-                            DB
-                          </span>
-                        )}
+                    return (
+                      <article
+                        key={item.assetId}
+                        className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/25 transition hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-white/[0.06]"
+                      >
+                        <div className="relative flex aspect-square items-center justify-center bg-gradient-to-b from-white/[0.06] to-black/20 p-5">
+                          {item.amount > 1 && (
+                            <span className="absolute right-3 top-3 rounded-full border border-cyan-300/20 bg-cyan-400/15 px-2.5 py-1 text-xs font-bold text-cyan-100">
+                              x{item.amount}
+                            </span>
+                          )}
 
-                        {item.imageUrl ? (
-                          <img
-                            src={item.imageUrl}
-                            alt={item.name}
-                            loading="lazy"
-                            className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-white/10 text-zinc-600">
-                            <FaBoxOpen className="text-3xl" />
-                          </div>
-                        )}
-                      </div>
+                          {item.matchedSkinId && (
+                            <span className="absolute left-3 top-3 rounded-full border border-emerald-300/20 bg-emerald-400/15 px-2.5 py-1 text-[11px] font-bold text-emerald-100">
+                              DB
+                            </span>
+                          )}
 
-                      <div className="flex flex-1 flex-col p-4">
-                        <div className="space-y-3">
-                          <div>
-                            <h4 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-5 text-white">
-                              {getDisplayName(item)}
-                            </h4>
+                          {item.imageUrl ? (
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              loading="lazy"
+                              className="h-full w-full object-contain transition duration-300 group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center rounded-2xl border border-dashed border-white/10 text-zinc-600">
+                              <FaBoxOpen className="text-3xl" />
+                            </div>
+                          )}
 
-                            <p className="mt-1 truncate text-xs text-zinc-500">
-                              {item.databaseWeaponType || item.type}
-                            </p>
-                          </div>
+                          {item.appliedItems &&
+                            item.appliedItems.length > 0 && (
+                              <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-3">
+                                {item.appliedItems
+                                  .slice(0, 5)
+                                  .map((appliedItem, index) => (
+                                    <div
+                                      key={`${item.assetId}-${appliedItem.type}-${appliedItem.name}-${index}`}
+                                      className="group/applied relative flex items-center justify-center"
+                                    >
+                                      {appliedItem.imageUrl ? (
+                                        <img
+                                          src={appliedItem.imageUrl}
+                                          alt={appliedItem.name}
+                                          loading="lazy"
+                                          className="h-10 w-10 object-contain transition duration-200 hover:-translate-y-1 hover:scale-110"
+                                        />
+                                      ) : (
+                                        <span className="text-[10px] font-bold text-cyan-200">
+                                          {appliedItem.type === "sticker"
+                                            ? "ST"
+                                            : "CH"}
+                                        </span>
+                                      )}
 
-                          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                              Float
-                            </p>
-                            <p className="mt-0.5 text-sm font-semibold text-cyan-200">
-                              {getFloatLabel(item, floatMap)}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            {item.rarity && (
-                              <span className="rounded-full border border-cyan-300/15 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-200">
-                                {item.rarity}
-                              </span>
+                                      <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-max max-w-[180px] -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-950/95 px-3 py-2 text-center text-xs text-white shadow-xl shadow-black/40 backdrop-blur-xl group-hover/applied:block">
+                                        <p className="font-semibold text-cyan-200">
+                                          {appliedItem.type === "sticker"
+                                            ? "Sticker"
+                                            : "Charm"}
+                                        </p>
+                                        <p className="mt-1 text-zinc-300">
+                                          {appliedItem.name}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
                             )}
-
-                            {item.exterior && (
-                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-zinc-300">
-                                {item.exterior}
-                              </span>
-                            )}
-
-                            {item.tradable && (
-                              <span className="rounded-full border border-emerald-300/15 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
-                                Tradable
-                              </span>
-                            )}
-                          </div>
                         </div>
 
-                        {item.marketUrl && (
-                          <a
-                            href={item.marketUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-auto inline-flex items-center gap-2 pt-4 text-xs font-semibold text-cyan-300 transition hover:text-cyan-200"
-                          >
-                            View on Market
-                            <FaExternalLinkAlt className="text-[10px]" />
-                          </a>
-                        )}
-                      </div>
-                    </article>
-                  ))}
+                        <div className="flex flex-1 flex-col p-4">
+                          <div className="space-y-3">
+                            <div>
+                              <h4 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-5 text-white">
+                                {getDisplayName(item)}
+                              </h4>
+
+                              <p className="mt-1 truncate text-xs text-zinc-500">
+                                {item.databaseWeaponType || item.type}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+                                Float
+                              </p>
+                              <p className="mt-0.5 text-sm font-semibold text-cyan-200">
+                                {getFloatLabel(item, floatMap)}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl border border-emerald-300/15 bg-emerald-400/10 px-3 py-2">
+                              <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-300/80">
+                                Steam Market
+                              </p>
+
+                              {!item.marketable ? (
+                                <p className="mt-2 text-sm font-semibold text-zinc-400">
+                                  N/A
+                                </p>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => void loadPriceForItem(item)}
+                                  className="mt-2 w-full rounded-lg border border-emerald-300/20 bg-emerald-500/15 px-3 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/25 hover:text-white active:scale-[0.98]"
+                                >
+                                  {priceLoadingMap[item.marketName || item.name]
+                                    ? "Loading..."
+                                    : priceMap[item.marketName || item.name]
+                                        ?.lowestPrice ||
+                                      priceMap[item.marketName || item.name]
+                                        ?.medianPrice ||
+                                      "Load price"}
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {item.rarity && (
+                                <span
+                                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold shadow-sm ${getRarityPillClass(
+                                    item.rarity,
+                                  )}`}
+                                >
+                                  {item.rarity}
+                                </span>
+                              )}
+
+                              {item.exterior && (
+                                <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-zinc-300">
+                                  {item.exterior}
+                                </span>
+                              )}
+
+                              {item.tradable && (
+                                <span className="rounded-full border border-emerald-300/15 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
+                                  Tradable
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {item.marketUrl && (
+                            <a
+                              href={item.marketUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-auto inline-flex items-center gap-2 pt-4 text-xs font-semibold text-cyan-300 transition hover:text-cyan-200"
+                            >
+                              View on Market
+                              <FaExternalLinkAlt className="text-[10px]" />
+                            </a>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center">

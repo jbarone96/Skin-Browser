@@ -1,15 +1,25 @@
 import { useMemo, useState } from "react";
 import { useGameItems, gameItemCategories } from "../hooks/useGameItems";
 import type { GameItem, GameItemCategory } from "../types/game-item";
+import { Link } from "react-router-dom";
 
 function SectionCard({ item }: { item: GameItem }) {
+  const targetValue = item.sourceName ?? item.name.replace(/ Skins$/, "");
+  const href = `/items/${encodeURIComponent(item.category)}/${encodeURIComponent(
+    targetValue,
+  )}`;
+
   return (
-    <article className="group flex min-h-[208px] flex-col overflow-hidden rounded-[30px] bg-black px-6 py-5 transition hover:-translate-y-0.5 hover:bg-black/95">
+    <Link
+      to={href}
+      className="group flex min-h-[208px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-zinc-950/80 px-6 py-5 shadow-[0_18px_50px_rgba(0,0,0,0.25)] transition hover:-translate-y-0.5 hover:border-cyan-400/30 hover:bg-zinc-900/90"
+    >
       <div>
         <h3 className="max-w-[170px] text-[1.15rem] font-semibold leading-[1.05] tracking-tight text-white sm:text-[1.25rem]">
           {item.name}
         </h3>
-        <p className="mt-2 text-sm font-medium text-white/72">
+
+        <p className="mt-2 text-sm font-medium text-zinc-400">
           {item.itemCount} {item.itemCount === 1 ? "Item" : "Items"}
         </p>
       </div>
@@ -32,7 +42,7 @@ function SectionCard({ item }: { item: GameItem }) {
           <div className="h-[92px] w-[92px] rounded-2xl border border-white/10 bg-white/5" />
         )}
       </div>
-    </article>
+    </Link>
   );
 }
 
@@ -46,13 +56,14 @@ function Section({
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <section id={title} className="mb-12 scroll-mt-24">
+    <section id={title} className="mb-12 scroll-mt-28">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-[2.15rem] font-semibold leading-none tracking-tight text-white sm:text-[2.35rem]">
             {title}
           </h2>
-          <p className="mt-2 text-lg text-white/45">
+
+          <p className="mt-2 text-lg text-zinc-500">
             {items.length} Categories
           </p>
         </div>
@@ -60,7 +71,7 @@ function Section({
         <button
           type="button"
           onClick={() => setIsCollapsed((prev) => !prev)}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/75 transition hover:bg-white/8 hover:text-white"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
           aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${title}`}
           aria-expanded={!isCollapsed}
         >
@@ -103,48 +114,41 @@ export default function GameItems() {
   }, [groupedItems]);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,116,144,0.45),_transparent_28%),linear-gradient(180deg,#0d5f97_0%,#0a2788_30%,#07135d_65%,#051034_100%)] text-white">
-      <div className="pointer-events-none absolute inset-0 opacity-20">
-        <div className="absolute -left-[12%] top-[8%] h-[520px] w-[520px] rounded-full border border-white/20" />
-        <div className="absolute left-[28%] top-[-8%] h-[840px] w-[840px] rounded-full border border-white/10" />
-        <div className="absolute right-[-14%] top-[10%] h-[720px] w-[720px] rounded-full border border-white/10" />
-        <div className="absolute bottom-[-12%] left-[38%] h-[560px] w-[560px] rounded-full border border-white/10" />
-      </div>
-
-      <div className="relative mx-auto max-w-[1500px] px-3 py-4 sm:px-4 sm:py-6 lg:px-6 xl:px-8">
+    <main className="min-h-screen text-white">
+      <div className="mx-auto max-w-[2100px] px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
-          <div className="w-full xl:w-[220px] xl:shrink-0">
+          <div className="w-full xl:w-[240px] xl:shrink-0">
             <div className="sticky top-24">
               <div className="xl:hidden">
                 <div className="flex items-center gap-3">
-                  <div className="flex-1 rounded-full bg-white/10 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
+                  <div className="flex-1 rounded-full border border-white/10 bg-zinc-950/70 px-4 py-3 shadow-[0_12px_35px_rgba(0,0,0,0.25)] backdrop-blur">
                     <input
                       type="text"
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Search..."
-                      className="w-full bg-transparent text-sm font-medium text-white placeholder:text-white/65 focus:outline-none"
+                      className="w-full bg-transparent text-sm font-medium text-white placeholder:text-zinc-500 focus:outline-none"
                     />
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setIsCategoryListOpen((prev) => !prev)}
-                    className="shrink-0 rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm transition hover:bg-white/14"
+                    className="shrink-0 rounded-full border border-white/10 bg-zinc-950/70 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_35px_rgba(0,0,0,0.25)] backdrop-blur transition hover:bg-zinc-900"
                   >
-                    List of Categories
+                    Categories
                   </button>
                 </div>
 
                 {isCategoryListOpen && (
-                  <div className="mt-4 rounded-[24px] bg-black/30 p-3 backdrop-blur-sm">
+                  <div className="mt-4 rounded-[24px] border border-white/10 bg-zinc-950/90 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur">
                     <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {visibleCategories.map((category) => (
                         <a
                           key={category}
                           href={`#${category}`}
                           onClick={() => setIsCategoryListOpen(false)}
-                          className="rounded-xl px-4 py-3 text-sm font-medium text-white/85 transition hover:bg-white/8 hover:text-white"
+                          className="rounded-xl px-4 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
                         >
                           {category}
                         </a>
@@ -155,13 +159,13 @@ export default function GameItems() {
               </div>
 
               <aside className="hidden xl:block">
-                <div className="mb-8 rounded-2xl bg-white/10 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
+                <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 shadow-[0_12px_35px_rgba(0,0,0,0.25)] backdrop-blur">
                   <input
                     type="text"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search..."
-                    className="w-full bg-transparent text-sm font-medium text-white placeholder:text-white/55 focus:outline-none"
+                    className="w-full bg-transparent text-sm font-medium text-white placeholder:text-zinc-500 focus:outline-none"
                   />
                 </div>
 
@@ -175,7 +179,7 @@ export default function GameItems() {
                       <a
                         key={category}
                         href={`#${category}`}
-                        className="flex w-full items-center rounded-xl px-4 py-3 text-left text-base font-medium text-white/85 transition hover:bg-white/6 hover:text-white"
+                        className="flex w-full items-center rounded-xl px-4 py-3 text-left text-base font-medium text-zinc-400 transition hover:bg-white/10 hover:text-white"
                       >
                         {category}
                       </a>
@@ -188,7 +192,7 @@ export default function GameItems() {
 
           <div className="min-w-0 flex-1">
             {loading ? (
-              <div className="rounded-[28px] border border-white/10 bg-black/20 px-6 py-16 text-center text-white/75">
+              <div className="rounded-[28px] border border-white/10 bg-zinc-950/70 px-6 py-16 text-center text-zinc-300">
                 Loading game items from Firestore...
               </div>
             ) : error ? (
@@ -196,7 +200,7 @@ export default function GameItems() {
                 {error}
               </div>
             ) : visibleCategories.length === 0 ? (
-              <div className="rounded-[28px] border border-white/10 bg-black/20 px-6 py-16 text-center text-white/75">
+              <div className="rounded-[28px] border border-white/10 bg-zinc-950/70 px-6 py-16 text-center text-zinc-300">
                 No game items found.
               </div>
             ) : (

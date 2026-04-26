@@ -19,6 +19,8 @@ if (!SESSION_SECRET) {
 const app = express();
 const steamSignIn = new SteamSignIn(BACKEND_URL);
 const FLOAT_CACHE = new Map();
+const PRICE_CACHE = new Map();
+const PRICE_CACHE_TTL_MS = 1000 * 60 * 30;
 
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
@@ -61,6 +63,7 @@ function httpsGetJson(url, timeoutMs = 10000) {
         headers: {
           "User-Agent": "Mozilla/5.0 SkinBrowser/1.0",
           Accept: "application/json",
+          Authorization: process.env.CSFLOAT_API_KEY,
         },
       },
       (response) => {
@@ -163,6 +166,8 @@ async function getSteamProfile(steamId64) {
       {
         headers: {
           "User-Agent": "Mozilla/5.0 SkinBrowser/1.0",
+          Accept: "application/json",
+          Authorization: process.env.CSFLOAT_API_KEY,
         },
       },
     );
@@ -215,6 +220,76 @@ function getDescriptionForAsset(
     classOnlyDescriptionMap.get(getClassOnlyKey(asset)) ||
     null
   );
+}
+function decodeHtml(value = "") {
+  return String(value)
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'");
+}
+
+function stripHtml(value = "") {
+  return decodeHtml(String(value).replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getImageUrlsFromHtml(value = "") {
+  const urls = [];
+  const imgRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+
+  let match = imgRegex.exec(value);
+
+  while (match) {
+    urls.push(match[1]);
+    match = imgRegex.exec(value);
+  }
+
+  return urls;
+}
+
+function parseAppliedItems(description) {
+  const rows = Array.isArray(description?.descriptions)
+    ? description.descriptions
+    : [];
+
+  const appliedItems = [];
+
+  rows.forEach((row) => {
+    const rawValue = String(row?.value || "");
+    const cleanValue = stripHtml(rawValue);
+
+    const lowerValue = cleanValue.toLowerCase();
+    const isStickerRow = lowerValue.includes("sticker:");
+    const isCharmRow = lowerValue.includes("charm:");
+
+    if (!isStickerRow && !isCharmRow) return;
+
+    const type = isStickerRow ? "sticker" : "charm";
+    const labelRegex = isStickerRow ? /sticker:/i : /charm:/i;
+
+    const names =
+      cleanValue
+        .split(labelRegex)
+        .at(1)
+        ?.split(",")
+        .map((name) => name.trim())
+        .filter(Boolean) ?? [];
+
+    const imageUrls = getImageUrlsFromHtml(rawValue);
+
+    names.forEach((name, index) => {
+      appliedItems.push({
+        type,
+        name,
+        imageUrl: imageUrls[index] || "",
+      });
+    });
+  });
+
+  return appliedItems;
 }
 
 function getInspectLink(asset, description, steamId64) {
@@ -277,6 +352,7 @@ function normalizeInventoryItem(asset, description, steamId64) {
     tradable: Number(description?.tradable || 0) === 1,
     marketable: Number(description?.marketable || 0) === 1,
     inspectLink: getInspectLink(asset, description, steamId64),
+    appliedItems: parseAppliedItems(description),
     imageUrl: description?.icon_url
       ? `https://community.cloudflare.steamstatic.com/economy/image/${description.icon_url}/360fx360f`
       : "",
@@ -763,6 +839,70 @@ async function runFloatLookupsWithConcurrency(items, concurrency = 12) {
   return results;
 }
 
+function parseSteamPrice(priceText) {
+  if (!priceText) return null;
+
+  const numeric = String(priceText).replace(/[^0-9.]/g, "");
+  const value = Number(numeric);
+
+  return Number.isFinite(value) ? value : null;
+}
+
+async function fetchSteamMarketPrice(marketHashName) {
+  if (!marketHashName) return null;
+
+  const cached = PRICE_CACHE.get(marketHashName);
+
+  if (cached && Date.now() - cached.cachedAt < PRICE_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const url = new URL("https://steamcommunity.com/market/priceoverview/");
+  url.searchParams.set("appid", "730");
+  url.searchParams.set("currency", "1");
+  url.searchParams.set("market_hash_name", marketHashName);
+
+  const response = await fetchWithTimeout(
+    url.toString(),
+    {
+      headers: {
+        "User-Agent": "Mozilla/5.0 SkinBrowser/1.0",
+        Accept: "application/json",
+      },
+    },
+    10000,
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(
+      `Steam price failed: ${response.status} ${response.statusText} ${body.slice(
+        0,
+        200,
+      )}`,
+    );
+  }
+
+  const data = await response.json();
+
+  const priceData = {
+    marketHashName,
+    success: Boolean(data?.success),
+    lowestPrice: data?.lowest_price || null,
+    medianPrice: data?.median_price || null,
+    volume: data?.volume || null,
+    lowestPriceNumber: parseSteamPrice(data?.lowest_price),
+    medianPriceNumber: parseSteamPrice(data?.median_price),
+  };
+
+  PRICE_CACHE.set(marketHashName, {
+    cachedAt: Date.now(),
+    data: priceData,
+  });
+
+  return priceData;
+}
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
@@ -860,6 +1000,54 @@ app.get("/steam/inventory", requireAuth, async (req, res, next) => {
       rows: inventory.rows,
       items: inventory.items,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/steam/prices", requireAuth, async (req, res, next) => {
+  try {
+    const requestedItems = Array.isArray(req.body?.items) ? req.body.items : [];
+
+    const marketNames = Array.from(
+      new Set(
+        requestedItems
+          .map((item) => String(item?.marketName || item?.name || "").trim())
+          .filter(Boolean),
+      ),
+    ).slice(0, 120);
+
+    const results = [];
+
+    for (const marketName of marketNames) {
+      try {
+        const priceData = await fetchSteamMarketPrice(marketName);
+
+        results.push({
+          marketName,
+          ...priceData,
+          error: null,
+        });
+      } catch (error) {
+        console.warn("Steam price lookup failed:", {
+          marketName,
+          message: error.message,
+        });
+
+        results.push({
+          marketName,
+          success: false,
+          lowestPrice: null,
+          medianPrice: null,
+          volume: null,
+          lowestPriceNumber: null,
+          medianPriceNumber: null,
+          error: error.message || "Failed to load price.",
+        });
+      }
+    }
+
+    return res.json({ results });
   } catch (error) {
     next(error);
   }

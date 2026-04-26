@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  limit,
+  query,
+  where,
+  type Query,
+  type DocumentData,
+} from "firebase/firestore";
 import { db } from "../utils/firebase";
 import type { SkinReference, SkinCategory } from "../types/skin";
 
@@ -100,33 +108,32 @@ export function useSkins(options?: UseSkinsOptions): UseSkinsResult {
         setLoading(true);
         setError(null);
 
-        console.log("[useSkins] Fetching skins from Firestore...");
-        console.log(
-          "[useSkins] Project ID:",
-          import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        );
+        let skinsQuery: Query<DocumentData> = collection(db, "skins");
 
-        const snapshot = await getDocs(collection(db, "skins"));
+        if (weapon !== "All") {
+          skinsQuery = query(skinsQuery, where("weaponType", "==", weapon));
+        }
 
-        const nextSkins = snapshot.docs.map((doc) => {
-          const data = doc.data() as Omit<SkinReference, "id">;
+        if (collectionFilter !== "All") {
+          skinsQuery = query(
+            skinsQuery,
+            where("collection", "==", collectionFilter),
+          );
+        }
 
-          return {
-            id: doc.id,
-            ...data,
-          };
-        });
+        skinsQuery = query(skinsQuery, limit(250));
 
-        nextSkins.sort((a, b) => a.fullName.localeCompare(b.fullName));
+        const snapshot = await getDocs(skinsQuery);
 
-        console.log("[useSkins] Loaded skins:", nextSkins.length);
+        const nextSkins = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<SkinReference, "id">),
+        }));
 
         if (isMounted) {
           setAllSkins(nextSkins);
         }
       } catch (err) {
-        console.error("[useSkins] Firestore read failed:", err);
-
         if (isMounted) {
           setError(getErrorMessage(err));
         }

@@ -59,6 +59,7 @@ function buildSkinWeaponCards(
       category,
       itemCount: 1,
       image: skin.image,
+      sourceName: skin.weapon,
     });
   }
 
