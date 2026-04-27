@@ -6,6 +6,8 @@ interface TradeupBuilderProps {
   requiredInputCount: number;
   onRemoveSkin: (index: number) => void;
   onClearSkins: () => void;
+  onDuplicateSkin: (skin: TradeupSkin) => void;
+  onUpdateSkinFloat: (index: number, nextFloat: number) => void;
 }
 
 export default function TradeupBuilder({
@@ -13,6 +15,8 @@ export default function TradeupBuilder({
   requiredInputCount,
   onRemoveSkin,
   onClearSkins,
+  onDuplicateSkin,
+  onUpdateSkinFloat,
 }: TradeupBuilderProps) {
   const slots = Array.from(
     { length: requiredInputCount },
@@ -47,18 +51,20 @@ export default function TradeupBuilder({
         </div>
       </div>
 
-      <div className="grid max-h-[calc(100vh-210px)] grid-cols-1 gap-3 overflow-y-auto pr-1 2xl:grid-cols-2">
+      <div className="grid max-h-[calc(100vh-210px)] grid-cols-[repeat(auto-fill,minmax(170px,190px))] justify-start gap-3 overflow-y-auto pr-1">
         {slots.map((skin, index) =>
           skin ? (
             <TradeupSelectedCard
               key={`${skin.id}-${index}`}
               skin={skin}
               onRemove={() => onRemoveSkin(index)}
+              onDuplicate={() => onDuplicateSkin(skin)}
+              onFloatChange={(nextFloat) => onUpdateSkinFloat(index, nextFloat)}
             />
           ) : (
             <div
               key={`empty-slot-${index}`}
-              className="flex min-h-[150px] items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] text-center"
+              className="flex min-h-[280px] items-center justify-center rounded-[18px] border border-dashed border-white/10 bg-white/[0.03] text-center"
             >
               <div>
                 <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-xl text-white/35">

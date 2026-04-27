@@ -164,6 +164,28 @@ function getMatchedCollectionKeys(
   );
 }
 
+function isSpecialOutcomeForInputCollection(
+  outcome: TradeupOutcomeSkin,
+  inputCollectionKeys: Set<string>,
+) {
+  const outcomeWeapon = outcome.weapon.toLowerCase();
+  const outcomeCollection = normalizeCollection(outcome.collection);
+
+  if (inputCollectionKeys.has(outcomeCollection)) return true;
+
+  // Kilowatt Case / Collection covert tradeups output Kukri Knife
+  if (
+    (inputCollectionKeys.has("kilowatt case") ||
+      inputCollectionKeys.has("the kilowatt collection") ||
+      inputCollectionKeys.has("kilowatt collection")) &&
+    outcomeWeapon.includes("kukri")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function calculateTradeupResult(
   inputs: TradeupSkin[],
   allPossibleOutcomes: TradeupOutcomeSkin[],
@@ -220,9 +242,11 @@ export function calculateTradeupResult(
   });
 
   if (baseRarity === "Covert" && eligibleOutcomes.length === 0) {
-    eligibleOutcomes = allPossibleOutcomes.filter(
-      (outcome) => outcome.rarity === "Special",
-    );
+    eligibleOutcomes = allPossibleOutcomes.filter((outcome) => {
+      if (outcome.rarity !== "Special") return false;
+
+      return isSpecialOutcomeForInputCollection(outcome, inputCollectionKeys);
+    });
   }
 
   if (eligibleOutcomes.length === 0) {

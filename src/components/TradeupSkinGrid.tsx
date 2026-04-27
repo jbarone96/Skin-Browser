@@ -3,12 +3,14 @@ import TradeupSkinCard from "./TradeupSkinCard";
 
 interface TradeupSkinGridProps {
   skins: TradeupSkin[];
+  selectedSkins: TradeupSkin[];
   selectedCount: number;
   onAddSkin: (skin: TradeupSkin) => void;
 }
 
 export default function TradeupSkinGrid({
   skins,
+  selectedSkins,
   selectedCount,
   onAddSkin,
 }: TradeupSkinGridProps) {
@@ -16,14 +18,21 @@ export default function TradeupSkinGrid({
 
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-      {skins.map((skin) => (
-        <TradeupSkinCard
-          key={skin.id}
-          skin={skin}
-          isDisabled={isFull}
-          onAdd={onAddSkin}
-        />
-      ))}
+      {skins.map((skin) => {
+        const selectedQuantity = selectedSkins.filter(
+          (selectedSkin) => selectedSkin.id === skin.id,
+        ).length;
+
+        return (
+          <TradeupSkinCard
+            key={skin.id}
+            skin={skin}
+            isDisabled={isFull}
+            isSelected={selectedQuantity > 0}
+            onAdd={onAddSkin}
+          />
+        );
+      })}
     </div>
   );
 }

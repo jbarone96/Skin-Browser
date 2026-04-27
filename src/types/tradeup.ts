@@ -46,7 +46,7 @@ export interface TradeupOutcomeSkin {
 export interface TradeupFiltersState {
   search: string;
   collection: string;
-  sortBy: "lowest-price" | "highest-price" | "lowest-float";
+  sortBy: "lowest-price" | "highest-price";
   quality: TradeupRarity;
 }
 

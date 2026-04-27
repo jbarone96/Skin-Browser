@@ -27,6 +27,16 @@ function StatCard({
 
 export default function TradeupOutcomes({ calculation }: TradeupOutcomesProps) {
   const { isValid, message, outcomes, summary } = calculation;
+  const uniqueOutcomes = outcomes.filter((outcome, index, array) => {
+    const key = `${outcome.skin.id}-${outcome.outputWear}-${outcome.outputFloat}`;
+
+    return (
+      array.findIndex(
+        (item) =>
+          `${item.skin.id}-${item.outputWear}-${item.outputFloat}` === key,
+      ) === index
+    );
+  });
 
   return (
     <aside className="rounded-[28px] border border-white/10 bg-black/20 p-4 sm:p-5">
@@ -83,8 +93,8 @@ export default function TradeupOutcomes({ calculation }: TradeupOutcomesProps) {
             </p>
           </div>
         ) : (
-          <div className="grid max-h-[calc(100vh-430px)] grid-cols-1 gap-3 overflow-y-auto pr-1 2xl:grid-cols-2">
-            {outcomes.map((outcome, index) => (
+          <div className="custom-scrollbar grid max-h-[calc(100vh-430px)] grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 overflow-y-auto pr-1">
+            {uniqueOutcomes.map((outcome, index) => (
               <TradeupOutcomeCard
                 key={outcome.id}
                 outcome={outcome}
